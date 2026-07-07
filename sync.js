@@ -300,36 +300,85 @@ async function main() {
     }
 
     const fields = await collection.getFields();
-    // Build a quick lookup: field name -> field id
-    const fieldIdByName = {};
+    // Build a quick lookup: field name -> full field object (id, type, cases, etc.)
+    const fieldByName = {};
     for (const field of fields) {
-      fieldIdByName[field.name] = field.id;
+      fieldByName[field.name] = field;
     }
 
     console.log(
       `Target collection "${collection.name}" has fields: ${Object.keys(
-        fieldIdByName
+        fieldByName
       ).join(", ")}`
     );
 
+    // Converts one raw Notion value into the shape Framer's addItems() expects,
+    // based on the destination field's actual type (string, number, boolean,
+    // enum, date, formattedText, image, link, color).
+    function toFieldDataEntry(field, rawValue, notionPropertyName) {
+      switch (field.type) {
+        case "string":
+          return { type: "string", value: String(rawValue) };
+        case "number": {
+          const num = typeof rawValue === "number" ? rawValue : parseFloat(rawValue);
+          if (Number.isNaN(num)) return null;
+          return { type: "number", value: num };
+        }
+        case "boolean":
+          return { type: "boolean", value: Boolean(rawValue) };
+        case "date": {
+          const d = new Date(rawValue);
+          if (Number.isNaN(d.getTime())) return null;
+          return { type: "date", value: d.toISOString() };
+        }
+        case "link":
+          return { type: "link", value: String(rawValue) };
+        case "image":
+          return { type: "image", value: String(rawValue) };
+        case "color":
+          return { type: "color", value: String(rawValue) };
+        case "formattedText":
+          return notionPropertyName === "Content"
+            ? { type: "formattedText", value: rawValue, contentType: "html" }
+            : { type: "formattedText", value: String(rawValue) };
+        case "enum": {
+          // Enum fields need the matching CASE ID, not the raw label text.
+          const label = String(rawValue).trim().toLowerCase();
+          const match = (field.cases || []).find(
+            (c) => c.name.trim().toLowerCase() === label
+          );
+          if (!match) {
+            console.warn(
+              `  (skipping "${field.name}": no matching option for "${rawValue}")`
+            );
+            return null;
+          }
+          return { type: "enum", value: match.id };
+        }
+        default:
+          console.warn(
+            `  (skipping "${field.name}": unsupported field type "${field.type}")`
+          );
+          return null;
+      }
+    }
+
     // 3. Map Notion rows -> Framer CMS items
-    // EDIT THIS MAPPING to match your actual Notion property names
-    // and your actual Framer field names.
+    // EDIT PROPERTY_TO_FIELD_MAP (below) to match your actual Notion property
+    // names and your actual Framer field names.
     const items = rows.map((row) => {
       const fieldData = {};
 
       for (const [notionPropertyName, fieldName] of Object.entries(
         PROPERTY_TO_FIELD_MAP
       )) {
-        const fieldId = fieldIdByName[fieldName];
-        if (!fieldId) continue; // field doesn't exist in this collection, skip
-        const value = row[notionPropertyName];
-        if (value !== undefined && value !== null) {
-          fieldData[fieldId] =
-            notionPropertyName === "Content"
-              ? { value, contentType: "html" }
-              : { value };
-        }
+        const field = fieldByName[fieldName];
+        if (!field) continue; // field doesn't exist in this collection, skip
+        const rawValue = row[notionPropertyName];
+        if (rawValue === undefined || rawValue === null || rawValue === "") continue;
+
+        const entry = toFieldDataEntry(field, rawValue, notionPropertyName);
+        if (entry) fieldData[field.id] = entry;
       }
 
       return {
