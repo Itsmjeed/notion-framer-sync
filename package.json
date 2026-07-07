@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
-    "framer-api": "*"
+    "framer-api": "*",
+    "ws": "^8.18.0"
   }
 }
