@@ -404,6 +404,31 @@ async function main() {
     // 4. Push into Framer
     await collection.addItems(items);
     console.log(`Synced ${items.length} items into "${collection.name}".`);
+
+    // 5. Delete-sync: remove Framer items whose slug no longer exists in Notion.
+    const notionSlugs = new Set(items.map((item) => item.slug));
+    const idsToRemove = existingItems
+      .filter((item) => !notionSlugs.has(item.slug))
+      .map((item) => item.id);
+
+    if (idsToRemove.length > 0) {
+      await collection.removeItems(idsToRemove);
+      console.log(
+        `Removed ${idsToRemove.length} item(s) no longer present in Notion.`
+      );
+    } else {
+      console.log("No items to remove.");
+    }
+
+    // 6. Auto-publish: create a deployment and promote it to production so the
+    // live site reflects the new CMS data without anyone opening Framer.
+    console.log("Publishing site...");
+    const publishResult = await framer.publish();
+    const hostnames = await framer.deploy(publishResult.deployment.id);
+    const primary = hostnames.find((h) => h.isPrimary) || hostnames[0];
+    console.log(
+      `Published to production${primary ? `: https://${primary.hostname}` : "."}`
+    );
   } finally {
     await framer.disconnect();
   }
