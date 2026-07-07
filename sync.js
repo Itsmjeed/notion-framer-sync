@@ -363,6 +363,16 @@ async function main() {
       }
     }
 
+    // Fetch existing items so we can UPDATE matches (by slug) and CREATE the rest.
+    // For unmanaged collections, providing an "id" means "update that existing
+    // item" — so new items must NOT include an id (Framer assigns one).
+    const existingItems = await collection.getItems();
+    const existingIdBySlug = {};
+    for (const item of existingItems) {
+      existingIdBySlug[item.slug] = item.id;
+    }
+    console.log(`Collection currently has ${existingItems.length} items.`);
+
     // 3. Map Notion rows -> Framer CMS items
     // EDIT PROPERTY_TO_FIELD_MAP (below) to match your actual Notion property
     // names and your actual Framer field names.
@@ -381,9 +391,12 @@ async function main() {
         if (entry) fieldData[field.id] = entry;
       }
 
+      const slug = slugify(row[TITLE_PROPERTY_NAME] || row.notionId);
+      const existingId = existingIdBySlug[slug];
+
       return {
-        id: row.notionId, // reuse Notion's page id as a stable Framer item id
-        slug: slugify(row[TITLE_PROPERTY_NAME] || row.notionId),
+        ...(existingId ? { id: existingId } : {}), // id only when updating
+        slug,
         fieldData,
       };
     });
