@@ -1,0 +1,32 @@
+name: Notion to Framer Sync
+
+on:
+  schedule:
+    # Runs every 15 minutes. GitHub Actions cron timing is best-effort,
+    # not exact-to-the-second, especially during high load periods.
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {} # lets you trigger it manually from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run sync
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          FRAMER_API_KEY: ${{ secrets.FRAMER_API_KEY }}
+          FRAMER_PROJECT_URL: ${{ secrets.FRAMER_PROJECT_URL }}
+          FRAMER_COLLECTION_NAME: ${{ secrets.FRAMER_COLLECTION_NAME }}
+        run: npm run sync

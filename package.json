@@ -1,0 +1,14 @@
+{
+  "name": "notion-framer-sync",
+  "version": "1.0.0",
+  "description": "Scheduled sync from a Notion database into a Framer CMS collection via the Framer Server API.",
+  "type": "module",
+  "main": "sync.js",
+  "scripts": {
+    "sync": "node sync.js"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.2.15",
+    "framer-api": "*"
+  }
+}
